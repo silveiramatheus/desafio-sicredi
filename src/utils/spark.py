@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 
-from src.config import PipelineConfig
+from src.config import LANDING_SCHEMA, LANDING_VOLUME, PipelineConfig
 
 
 def get_spark(config: PipelineConfig, app_name: str = "novarota-pipeline") -> SparkSession:
@@ -30,3 +30,10 @@ def get_spark(config: PipelineConfig, app_name: str = "novarota-pipeline") -> Sp
 def create_schemas(spark: SparkSession, config: PipelineConfig) -> None:
     for layer in config.schemas:
         spark.sql(f"CREATE SCHEMA IF NOT EXISTS {config.schema(layer)}")
+
+
+def create_landing_volume(spark: SparkSession, config: PipelineConfig) -> None:
+    if config.env != "databricks":
+        return
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {config.catalog}.{LANDING_SCHEMA}")
+    spark.sql(f"CREATE VOLUME IF NOT EXISTS {config.catalog}.{LANDING_SCHEMA}.{LANDING_VOLUME}")

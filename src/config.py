@@ -12,6 +12,15 @@ SCHEMAS = {
 
 ENTITIES = ("clientes", "contas", "cartoes", "transacoes_cartao", "estornos")
 
+LANDING_SCHEMA = "novarota"
+LANDING_VOLUME = "landing"
+
+
+def detect_env() -> str:
+    if os.getenv("PIPELINE_ENV"):
+        return os.environ["PIPELINE_ENV"].lower()
+    return "databricks" if os.getenv("DATABRICKS_RUNTIME_VERSION") else "local"
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -35,13 +44,13 @@ class PipelineConfig:
         catalog = os.getenv("CATALOG", "workspace")
         return cls(
             env="databricks",
-            landing_path=os.getenv("LANDING_PATH", f"/Volumes/{catalog}/novarota/landing"),
+            landing_path=os.getenv("LANDING_PATH", f"/Volumes/{catalog}/{LANDING_SCHEMA}/{LANDING_VOLUME}"),
             catalog=catalog,
         )
 
     @classmethod
     def from_env(cls) -> "PipelineConfig":
-        env = os.getenv("PIPELINE_ENV", "local").lower()
+        env = detect_env()
         if env == "databricks":
             return cls.databricks()
         if env == "local":

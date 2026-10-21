@@ -1,4 +1,6 @@
-from pyspark.sql import SparkSession
+from pathlib import Path
+
+from pyspark.sql import DataFrame, SparkSession
 
 from src.config import LANDING_SCHEMA, LANDING_VOLUME, PipelineConfig
 
@@ -30,6 +32,12 @@ def get_spark(config: PipelineConfig, app_name: str = "novarota-pipeline") -> Sp
 def create_schemas(spark: SparkSession, config: PipelineConfig) -> None:
     for layer in config.schemas:
         spark.sql(f"CREATE SCHEMA IF NOT EXISTS {config.schema(layer)}")
+
+
+def run_sql_file(spark: SparkSession, config: PipelineConfig, path: Path | str) -> DataFrame:
+    if config.catalog:
+        spark.sql(f"USE CATALOG {config.catalog}")
+    return spark.sql(Path(path).read_text(encoding="utf-8").strip().rstrip(";"))
 
 
 def create_landing_volume(spark: SparkSession, config: PipelineConfig) -> None:

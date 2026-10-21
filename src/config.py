@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +15,12 @@ ENTITIES = ("clientes", "contas", "cartoes", "transacoes_cartao", "estornos")
 
 LANDING_SCHEMA = "novarota"
 LANDING_VOLUME = "landing"
+
+
+def landing_file_name(entity: str, reference_date: date) -> str:
+    if entity == "transacoes_cartao":
+        return f"transacoes_cartao_{reference_date:%Y%m%d}.csv"
+    return f"{entity}.csv"
 
 
 def detect_env() -> str:
@@ -63,3 +70,6 @@ class PipelineConfig:
 
     def table(self, layer: str, name: str) -> str:
         return f"{self.schema(layer)}.{name}"
+
+    def landing_folder(self, reference_date: date) -> str:
+        return f"{self.landing_path}/{reference_date.isoformat()}"

@@ -7,6 +7,8 @@ from pathlib import Path
 
 from faker import Faker
 
+from src.config import landing_file_name
+
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 COLUMNS = {
@@ -296,7 +298,7 @@ def write_day(fake: Faker, output_path: Path | str, reference_date: date, clean:
         all_rows = rows + noisy_rows
         fake.random.shuffle(all_rows)
 
-        name = file_name(entity, reference_date)
+        name = landing_file_name(entity, reference_date)
         with open(folder / name, "w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=COLUMNS[entity])
             writer.writeheader()
@@ -309,12 +311,6 @@ def write_day(fake: Faker, output_path: Path | str, reference_date: date, clean:
 
     (folder / "_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return folder
-
-
-def file_name(entity: str, reference_date: date) -> str:
-    if entity == "transacoes_cartao":
-        return f"transacoes_cartao_{reference_date:%Y%m%d}.csv"
-    return f"{entity}.csv"
 
 
 def break_cpf(fake: Faker, cpf: str) -> str:

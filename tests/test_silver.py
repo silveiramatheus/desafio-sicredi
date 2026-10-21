@@ -7,10 +7,11 @@ from pathlib import Path
 import pytest
 from pyspark.sql import functions as F
 
-from src.config import ENTITIES
+from src.config import ENTITIES, PROJECT_ROOT
 from src.datagen.generator import generate_landing
 from src.ingestion.bronze import ingest_reference_date
 from src.transformations.silver import merge_into, run_silver
+from src.utils.spark import run_sql_file
 
 DAYS = [date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3)]
 
@@ -101,6 +102,13 @@ def test_reprocessing_a_date_is_idempotent(spark, pipeline):
     after = {entity: spark.table(pipeline.table("silver", entity)).count() for entity in ENTITIES}
     assert after == before
     assert spark.table(pipeline.table("silver", "quarentena_transacoes_cartao")).count() == quarantine_before
+
+
+def test_validation_queries_find_no_violations(spark, pipeline):
+    validations = run_sql_file(spark, pipeline, PROJECT_ROOT / "sql" / "validacao_silver.sql").collect()
+
+    assert len(validations) == 16
+    assert {row["regra"]: row["violacoes"] for row in validations if row["violacoes"]} == {}
 
 
 def test_older_version_arriving_later_does_not_overwrite_newer_one(spark, config):

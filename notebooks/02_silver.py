@@ -63,3 +63,22 @@ display(spark.sql(f"""
 # COMMAND ----------
 
 display(spark.table(config.table("silver", "quarentena_clientes")).where(f"data_referencia = '{reference_date}'"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Validações
+# MAGIC Invariantes da camada Silver (`sql/validacao_silver.sql`). Todas as regras devem ter `0` violações.
+
+# COMMAND ----------
+
+from src.config import PROJECT_ROOT
+from src.utils.spark import run_sql_file
+
+validations = run_sql_file(spark, config, PROJECT_ROOT / "sql" / "validacao_silver.sql")
+display(validations)
+
+# COMMAND ----------
+
+failures = validations.where("violacoes > 0").collect()
+assert not failures, f"Silver validations failed: {[row['regra'] for row in failures]}"

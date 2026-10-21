@@ -3,6 +3,7 @@ from datetime import date
 
 from src.config import PipelineConfig
 from src.ingestion.bronze import ingest_reference_date
+from src.transformations.gold import build_gold
 from src.transformations.silver import run_silver
 from src.utils.spark import create_schemas, get_spark
 
@@ -19,6 +20,7 @@ def main() -> None:
     for reference_date in args.dates:
         ingest_reference_date(spark, config, reference_date)
         run_silver(spark, config, reference_date)
+    build_gold(spark, config)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,5 @@
+quartil,faixa,qtd_clientes,valor_movimentado
+1,Q1 - maior valor movimentado,37,524021.13
+2,Q2,36,270496.55
+3,Q3,36,160945.44
+4,Q4 - menor valor movimentado,36,60861.75

@@ -1,0 +1,16 @@
+ano_mes,nome_estabelecimento,cidade_estabelecimento,mcc,qtd_transacoes,valor_total,ticket_medio,qtd_clientes_distintos,ranking_valor,ranking_quantidade
+2026-08-01,Posto Pires,Vieira,5541,50,21599.21,431.98,37,1,1
+2026-08-01,Supermercado Siqueira,Nascimento de Campos,5411,47,20754.47,441.58,37,2,4
+2026-08-01,Farmacia Vargas,Barros de Goiás,5912,44,19203.10,436.43,38,3,6
+2026-08-01,Farmacia Rodrigues,Vargas do Norte,5912,49,19132.26,390.45,40,4,2
+2026-08-01,Restaurante Rodrigues,Vargas Alegre,5812,47,18686.09,397.58,38,5,4
+2026-09-01,Posto Pires,Vieira,5541,53,23914.62,451.22,43,1,1
+2026-09-01,Transporte Cunha,Gonçalves de Ramos,4121,52,22246.13,427.81,42,2,2
+2026-09-01,Cinema Casa Grande,Carvalho de Goiás,7832,42,19855.40,472.75,36,3,9
+2026-09-01,Supermercado Novais,Silva,5411,48,19561.31,407.53,41,4,5
+2026-09-01,Restaurante Cunha,Montenegro,5812,49,18951.50,386.77,38,5,4
+2026-10-01,Restaurante Pastor,Andrade do Sul,5812,9,4159.04,462.12,9,1,1
+2026-10-01,Cinema Borges,Camargo,7832,7,3771.33,538.76,7,2,3
+2026-10-01,Eletronicos Barros,Pires da Praia,5732,6,3683.91,613.99,6,3,4
+2026-10-01,Restaurante Garcia,Marques da Praia,5812,8,3515.65,439.46,8,4,2
+2026-10-01,Farmacia Rodrigues,Vargas do Norte,5912,6,3244.61,540.77,6,5,4

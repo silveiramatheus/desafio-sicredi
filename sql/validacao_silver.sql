@@ -1,9 +1,16 @@
-WITH clientes_validos_bronze AS (
+WITH ultima_carga_silver AS (
+    SELECT max(data_referencia) AS data_referencia
+    FROM silver.clientes
+),
+
+clientes_validos_bronze AS (
     SELECT b.*
     FROM bronze.clientes AS b
+    CROSS JOIN ultima_carga_silver AS u
     LEFT ANTI JOIN silver.quarentena_clientes AS q
         ON b.hash_linha = q.hash_linha
        AND q.motivo_erro NOT IN ('REGISTRO_DUPLICADO', 'VERSAO_DESATUALIZADA')
+    WHERE b.data_referencia <= u.data_referencia
 ),
 
 versao_mais_recente AS (

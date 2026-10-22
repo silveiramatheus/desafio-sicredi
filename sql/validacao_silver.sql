@@ -79,6 +79,18 @@ checagens AS (
     WHERE status_cartao NOT IN ('ATIVO', 'BLOQUEADO', 'CANCELADO')
 
     UNION ALL
+    SELECT 'transacao_antes_da_emissao_do_cartao', count(*)
+    FROM silver.transacoes_cartao AS t
+    JOIN silver.cartoes AS c ON c.id_cartao = t.id_cartao
+    WHERE to_date(t.data_transacao) < c.data_emissao
+
+    UNION ALL
+    SELECT 'estorno_antes_da_transacao', count(*)
+    FROM silver.estornos AS e
+    JOIN silver.transacoes_cartao AS t ON t.id_transacao = e.id_transacao
+    WHERE e.data_estorno < to_date(t.data_transacao)
+
+    UNION ALL
     SELECT 'cliente_fora_da_versao_mais_recente', count(*)
     FROM versao_mais_recente AS v
     JOIN silver.clientes AS s ON s.id_cliente = v.id_cliente

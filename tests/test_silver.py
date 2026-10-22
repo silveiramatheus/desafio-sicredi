@@ -107,7 +107,7 @@ def test_reprocessing_a_date_is_idempotent(spark, pipeline):
 def test_validation_queries_find_no_violations(spark, pipeline):
     validations = run_sql_file(spark, pipeline, PROJECT_ROOT / "sql" / "validacao_silver.sql").collect()
 
-    assert len(validations) == 16
+    assert len(validations) == 18
     assert {row["regra"]: row["violacoes"] for row in validations if row["violacoes"]} == {}
 
 

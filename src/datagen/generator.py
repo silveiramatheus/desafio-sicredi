@@ -46,6 +46,12 @@ MCC_CATEGORIES = {
     "7832": "Cinema",
 }
 
+ACCOUNT_STATUS_WEIGHTS = (90, 6, 4)
+CARD_STATUS_WEIGHTS = (90, 5, 5)
+ONLY_ACTIVE = (1, 0, 0)
+CARD_STATUS_BY_ACCOUNT_STATUS = {"BLOQUEADA": "BLOQUEADO", "ENCERRADA": "CANCELADO"}
+LATEST_BIRTH_DATE = date(2004, 1, 1)
+
 ORPHAN_ID_BASE = 900_000
 NEW_CUSTOMERS_PER_DAY = 15
 CUSTOMER_UPDATES_PER_DAY = 15
@@ -90,7 +96,9 @@ def generate_landing(
             }
         else:
             updated_customers = update_customers(fake, customers, CUSTOMER_UPDATES_PER_DAY, reference_date)
-            updated_accounts = update_accounts(fake, accounts, ACCOUNT_STATUS_CHANGES_PER_DAY)
+            updated_accounts, cards_of_updated_accounts = update_accounts(
+                fake, accounts, cards, ACCOUNT_STATUS_CHANGES_PER_DAY, reference_date
+            )
             cancelled_cards = cancel_cards(fake, cards, CARD_CANCELLATIONS_PER_DAY, reference_date)
             new_customers, new_accounts, new_cards = onboard_customers(
                 fake, ids, NEW_CUSTOMERS_PER_DAY, reference_date, customers, accounts, cards
@@ -99,7 +107,7 @@ def generate_landing(
             clean = {
                 "clientes": updated_customers + new_customers,
                 "contas": updated_accounts + new_accounts,
-                "cartoes": cancelled_cards + new_cards,
+                "cartoes": cards_of_updated_accounts + cancelled_cards + new_cards,
                 "transacoes_cartao": (
                     build_transactions(fake, ids, cards, merchants, [reference_date], transactions_per_day)
                     + build_transactions(fake, ids, cards, merchants, late_days, 1)
@@ -115,15 +123,13 @@ def generate_landing(
 
 
 def build_merchants(fake: Faker, count: int) -> list[dict]:
-    merchants = []
-    for _ in range(count):
+    merchants = {}
+    while len(merchants) < count:
         mcc, category = fake.random.choice(list(MCC_CATEGORIES.items()))
-        merchants.append({
-            "nome_estabelecimento": f"{category} {fake.last_name()}",
-            "mcc": mcc,
-            "cidade_estabelecimento": fake.city(),
-        })
-    return merchants
+        name = f"{category} {fake.last_name()}"
+        if name not in merchants:
+            merchants[name] = {"nome_estabelecimento": name, "mcc": mcc, "cidade_estabelecimento": fake.city()}
+    return list(merchants.values())
 
 
 def build_customers(fake: Faker, ids: dict, count: int, first_day: date, last_day: date) -> list[dict]:
@@ -134,7 +140,7 @@ def build_customers(fake: Faker, ids: dict, count: int, first_day: date, last_da
             "id_cliente": next(ids["clientes"]),
             "nome": fake.name(),
             "cpf": fake.cpf(),
-            "data_nascimento": fake.date_between_dates(date(1950, 1, 1), date(2006, 12, 31)).isoformat(),
+            "data_nascimento": fake.date_between_dates(date(1950, 1, 1), LATEST_BIRTH_DATE).isoformat(),
             "cidade": fake.city(),
             "estado": fake.estado_sigla(),
             "data_atualizacao": random_timestamp(fake, updated_on),
@@ -142,7 +148,14 @@ def build_customers(fake: Faker, ids: dict, count: int, first_day: date, last_da
     return customers
 
 
-def build_accounts(fake: Faker, ids: dict, customers: list[dict], first_day: date, last_day: date) -> list[dict]:
+def build_accounts(
+    fake: Faker,
+    ids: dict,
+    customers: list[dict],
+    first_day: date,
+    last_day: date,
+    status_weights: tuple[int, ...] = ACCOUNT_STATUS_WEIGHTS,
+) -> list[dict]:
     accounts = []
     for customer in customers:
         for _ in range(fake.random.choice((1, 1, 2))):
@@ -151,13 +164,25 @@ def build_accounts(fake: Faker, ids: dict, customers: list[dict], first_day: dat
                 "id_conta": next(ids["contas"]),
                 "id_cliente": customer["id_cliente"],
                 "tipo_conta": fake.random.choice(ACCOUNT_TYPES),
-                "status_conta": fake.random.choices(ACCOUNT_STATUSES, weights=(90, 6, 4))[0],
+                "status_conta": fake.random.choices(ACCOUNT_STATUSES, weights=status_weights)[0],
                 "data_abertura": opened_on.isoformat(),
             })
     return accounts
 
 
-def build_cards(fake: Faker, ids: dict, accounts: list[dict], last_day: date) -> list[dict]:
+def card_status(fake: Faker, account_status: str, status_weights: tuple[int, ...]) -> str:
+    if account_status in CARD_STATUS_BY_ACCOUNT_STATUS:
+        return CARD_STATUS_BY_ACCOUNT_STATUS[account_status]
+    return fake.random.choices(CARD_STATUSES, weights=status_weights)[0]
+
+
+def build_cards(
+    fake: Faker,
+    ids: dict,
+    accounts: list[dict],
+    last_day: date,
+    status_weights: tuple[int, ...] = CARD_STATUS_WEIGHTS,
+) -> list[dict]:
     cards = []
     for account in accounts:
         for _ in range(fake.random.choice((1, 1, 2))):
@@ -168,7 +193,7 @@ def build_cards(fake: Faker, ids: dict, accounts: list[dict], last_day: date) ->
                 "id_conta": account["id_conta"],
                 "bandeira": fake.random.choice(CARD_BRANDS),
                 "tipo_cartao": fake.random.choice(CARD_TYPES),
-                "status_cartao": fake.random.choices(CARD_STATUSES, weights=(90, 5, 5))[0],
+                "status_cartao": card_status(fake, account["status_conta"], status_weights),
                 "data_emissao": issued_on.isoformat(),
                 "data_atualizacao": random_timestamp(fake, updated_on),
             })
@@ -179,10 +204,11 @@ def build_transactions(fake: Faker, ids: dict, cards: list[dict], merchants: lis
     active_cards = [card for card in cards if card["status_cartao"] == "ATIVO"]
     transactions = []
     for day in days:
+        issued_cards = [card for card in active_cards if card["data_emissao"] <= day.isoformat()]
         for _ in range(per_day):
             transactions.append({
                 "id_transacao": next(ids["transacoes_cartao"]),
-                "id_cartao": fake.random.choice(active_cards)["id_cartao"],
+                "id_cartao": fake.random.choice(issued_cards)["id_cartao"],
                 "data_transacao": random_timestamp(fake, day),
                 "valor": f"{fake.random.uniform(5, 800):.2f}",
                 **fake.random.choice(merchants),
@@ -212,8 +238,8 @@ def onboard_customers(
     cards: list[dict],
 ) -> tuple[list[dict], list[dict], list[dict]]:
     new_customers = build_customers(fake, ids, count, reference_date, reference_date)
-    new_accounts = build_accounts(fake, ids, new_customers, reference_date, reference_date)
-    new_cards = build_cards(fake, ids, new_accounts, reference_date)
+    new_accounts = build_accounts(fake, ids, new_customers, reference_date, reference_date, ONLY_ACTIVE)
+    new_cards = build_cards(fake, ids, new_accounts, reference_date, ONLY_ACTIVE)
     customers += new_customers
     accounts += new_accounts
     cards += new_cards
@@ -233,13 +259,28 @@ def update_customers(fake: Faker, customers: list[dict], count: int, reference_d
     return updated
 
 
-def update_accounts(fake: Faker, accounts: list[dict], count: int) -> list[dict]:
+def update_accounts(
+    fake: Faker,
+    accounts: list[dict],
+    cards: list[dict],
+    count: int,
+    reference_date: date,
+) -> tuple[list[dict], list[dict]]:
     active = [index for index, account in enumerate(accounts) if account["status_conta"] == "ATIVA"]
-    updated = []
+    updated_accounts, updated_cards = [], []
     for index in fake.random.sample(active, count):
-        accounts[index] = {**accounts[index], "status_conta": fake.random.choice(("BLOQUEADA", "ENCERRADA"))}
-        updated.append(accounts[index])
-    return updated
+        status = fake.random.choice(("BLOQUEADA", "ENCERRADA"))
+        accounts[index] = {**accounts[index], "status_conta": status}
+        updated_accounts.append(accounts[index])
+        for card_index, card in enumerate(cards):
+            if card["id_conta"] == accounts[index]["id_conta"] and card["status_cartao"] == "ATIVO":
+                cards[card_index] = {
+                    **card,
+                    "status_cartao": CARD_STATUS_BY_ACCOUNT_STATUS[status],
+                    "data_atualizacao": random_timestamp(fake, reference_date),
+                }
+                updated_cards.append(cards[card_index])
+    return updated_accounts, updated_cards
 
 
 def cancel_cards(fake: Faker, cards: list[dict], count: int, reference_date: date) -> list[dict]:

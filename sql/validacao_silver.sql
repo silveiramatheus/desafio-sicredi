@@ -1,9 +1,16 @@
-WITH clientes_validos_bronze AS (
+WITH ultima_carga_silver AS (
+    SELECT max(data_referencia) AS data_referencia
+    FROM silver.clientes
+),
+
+clientes_validos_bronze AS (
     SELECT b.*
     FROM bronze.clientes AS b
+    CROSS JOIN ultima_carga_silver AS u
     LEFT ANTI JOIN silver.quarentena_clientes AS q
         ON b.hash_linha = q.hash_linha
        AND q.motivo_erro NOT IN ('REGISTRO_DUPLICADO', 'VERSAO_DESATUALIZADA')
+    WHERE b.data_referencia <= u.data_referencia
 ),
 
 versao_mais_recente AS (
@@ -77,6 +84,18 @@ checagens AS (
     SELECT 'status_cartao_fora_do_dominio', count(*)
     FROM silver.cartoes
     WHERE status_cartao NOT IN ('ATIVO', 'BLOQUEADO', 'CANCELADO')
+
+    UNION ALL
+    SELECT 'transacao_antes_da_emissao_do_cartao', count(*)
+    FROM silver.transacoes_cartao AS t
+    JOIN silver.cartoes AS c ON c.id_cartao = t.id_cartao
+    WHERE to_date(t.data_transacao) < c.data_emissao
+
+    UNION ALL
+    SELECT 'estorno_antes_da_transacao', count(*)
+    FROM silver.estornos AS e
+    JOIN silver.transacoes_cartao AS t ON t.id_transacao = e.id_transacao
+    WHERE e.data_estorno < to_date(t.data_transacao)
 
     UNION ALL
     SELECT 'cliente_fora_da_versao_mais_recente', count(*)

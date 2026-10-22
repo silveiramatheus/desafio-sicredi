@@ -2,7 +2,7 @@ import pytest
 from pyspark.sql import functions as F
 
 from src.quality.cpf import is_valid_cpf
-from src.quality.rules import REFERENCE_FLAG, apply_quality_rules, quality_rules
+from src.quality.rules import PARENT_PREFIX, REFERENCE_FLAG, apply_quality_rules, quality_rules
 from src.transformations.silver import ENTITY_SPECS, cast_columns
 
 LINEAGE = {"arquivo_origem": "f.csv", "data_referencia": "2026-10-01", "timestamp_ingestao": "2026-10-01 08:00:00", "hash_linha": "h"}
@@ -34,10 +34,21 @@ def bronze_rows(spark, entity, rows):
     return spark.createDataFrame(data, ", ".join(f"{column} string" for column in columns))
 
 
-def split(spark, entity, rows, reference_exists=True):
-    typed = cast_columns(bronze_rows(spark, entity, rows), ENTITY_SPECS[entity].columns)
-    if ENTITY_SPECS[entity].parent:
+PARENT_VALUES = {
+    "data_emissao": ("2026-01-01", "date"),
+    "data_transacao": ("2026-09-01 10:00:00", "timestamp"),
+}
+
+
+def split(spark, entity, rows, reference_exists=True, parent_values=None):
+    spec = ENTITY_SPECS[entity]
+    typed = cast_columns(bronze_rows(spark, entity, rows), spec.columns)
+    if spec.parent:
         typed = typed.withColumn(REFERENCE_FLAG, F.lit(reference_exists))
+    for column in spec.parent_columns:
+        value, data_type = PARENT_VALUES[column]
+        value = (parent_values or {}).get(column, value)
+        typed = typed.withColumn(f"{PARENT_PREFIX}{column}", F.lit(value).cast(data_type))
     return apply_quality_rules(typed, quality_rules(entity))
 
 
@@ -111,6 +122,35 @@ def test_transaction_rules(spark, overrides, reason):
     _, invalid = split(spark, "transacoes_cartao", [transaction(**overrides)])
 
     assert invalid.first()["motivo_erro"] == reason
+
+
+def test_transaction_before_card_issue_date_is_rejected(spark):
+    _, invalid = split(spark, "transacoes_cartao", [transaction(data_transacao="2026-09-30 07:00:00")],
+                       parent_values={"data_emissao": "2026-10-03"})
+
+    assert invalid.first()["motivo_erro"] == "DATA_ANTERIOR_EMISSAO_CARTAO"
+
+
+def test_transaction_on_card_issue_date_is_valid(spark):
+    valid, invalid = split(spark, "transacoes_cartao", [transaction(data_transacao="2026-10-03 07:00:00")],
+                           parent_values={"data_emissao": "2026-10-03"})
+
+    assert invalid.count() == 0
+    assert valid.count() == 1
+
+
+def test_chargeback_before_transaction_date_is_rejected(spark):
+    chargeback = {"id_estorno": "1", "id_transacao": "10", "data_estorno": "2026-08-31", "motivo_estorno": "fraude"}
+    _, invalid = split(spark, "estornos", [chargeback], parent_values={"data_transacao": "2026-09-01 10:00:00"})
+
+    assert invalid.first()["motivo_erro"] == "DATA_ANTERIOR_TRANSACAO"
+
+
+def test_chargeback_on_transaction_date_is_valid(spark):
+    chargeback = {"id_estorno": "1", "id_transacao": "10", "data_estorno": "2026-09-01", "motivo_estorno": "fraude"}
+    valid, _ = split(spark, "estornos", [chargeback], parent_values={"data_transacao": "2026-09-01 22:00:00"})
+
+    assert valid.first()["motivo_estorno"] == "FRAUDE"
 
 
 def test_transaction_with_unknown_card_fails_referential_integrity(spark):

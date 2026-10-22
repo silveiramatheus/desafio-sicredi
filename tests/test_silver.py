@@ -14,6 +14,7 @@ from src.transformations.silver import merge_into, run_silver
 from src.utils.spark import run_sql_file
 
 DAYS = [date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3)]
+BRONZE_ONLY_DAY = date(2026, 10, 4)
 
 NOISE_TO_REASON = {
     "invalid_cpf": "CPF_INVALIDO",
@@ -40,10 +41,11 @@ def pipeline(spark, config, tmp_path_factory):
     landing = tmp_path_factory.mktemp("silver_landing")
     pipeline_config = replace(config, landing_path=str(landing))
     drop_tables(spark, pipeline_config)
-    generate_landing(landing, start_date=DAYS[0], days=len(DAYS), history_days=10, num_customers=40, transactions_per_day=20)
+    generate_landing(landing, start_date=DAYS[0], days=len(DAYS) + 1, history_days=10, num_customers=40, transactions_per_day=20)
     for reference_date in DAYS:
         ingest_reference_date(spark, pipeline_config, reference_date)
         run_silver(spark, pipeline_config, reference_date)
+    ingest_reference_date(spark, pipeline_config, BRONZE_ONLY_DAY)
     return pipeline_config
 
 
@@ -107,7 +109,7 @@ def test_reprocessing_a_date_is_idempotent(spark, pipeline):
 def test_validation_queries_find_no_violations(spark, pipeline):
     validations = run_sql_file(spark, pipeline, PROJECT_ROOT / "sql" / "validacao_silver.sql").collect()
 
-    assert len(validations) == 16
+    assert len(validations) == 18
     assert {row["regra"]: row["violacoes"] for row in validations if row["violacoes"]} == {}
 
 

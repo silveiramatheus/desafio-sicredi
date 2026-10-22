@@ -2,6 +2,7 @@
 # MAGIC %md
 # MAGIC # 00 - Setup
 # MAGIC Cria os schemas `bronze`, `silver`, `gold`, o Volume de landing e gera a massa fictícia diretamente no Volume.
+# MAGIC Com `reset_tables = true`, as tabelas das três camadas são removidas antes, para reprocessar tudo a partir de uma massa nova.
 
 # COMMAND ----------
 
@@ -17,6 +18,7 @@ dbutils.widgets.text("start_date", "2026-10-01")
 dbutils.widgets.text("days", "3")
 dbutils.widgets.text("seed", "42")
 dbutils.widgets.dropdown("reset_landing", "true", ["true", "false"])
+dbutils.widgets.dropdown("reset_tables", "false", ["true", "false"])
 
 # COMMAND ----------
 
@@ -24,13 +26,16 @@ from datetime import date
 
 from src.config import PipelineConfig
 from src.datagen.generator import generate_landing
-from src.utils.spark import create_landing_volume, create_schemas, get_spark
+from src.utils.spark import create_landing_volume, create_schemas, drop_schemas, get_spark
 
 config = PipelineConfig.from_env()
 spark = get_spark(config)
 print(config)
 
 # COMMAND ----------
+
+if dbutils.widgets.get("reset_tables") == "true":
+    drop_schemas(spark, config)
 
 create_schemas(spark, config)
 create_landing_volume(spark, config)

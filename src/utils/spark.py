@@ -34,6 +34,11 @@ def create_schemas(spark: SparkSession, config: PipelineConfig) -> None:
         spark.sql(f"CREATE SCHEMA IF NOT EXISTS {config.schema(layer)}")
 
 
+def drop_schemas(spark: SparkSession, config: PipelineConfig) -> None:
+    for layer in config.schemas:
+        spark.sql(f"DROP SCHEMA IF EXISTS {config.schema(layer)} CASCADE")
+
+
 def run_sql_file(spark: SparkSession, config: PipelineConfig, path: Path | str) -> DataFrame:
     if config.catalog:
         spark.sql(f"USE CATALOG {config.catalog}")

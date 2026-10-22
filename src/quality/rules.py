@@ -7,6 +7,7 @@ from src.quality.cpf import is_valid_cpf
 ACCOUNT_STATUSES = ("ATIVA", "BLOQUEADA", "ENCERRADA")
 CARD_STATUSES = ("ATIVO", "BLOQUEADO", "CANCELADO")
 REFERENCE_FLAG = "_reference_exists"
+PARENT_PREFIX = "_parent_"
 FAILURES_COLUMN = "_failures"
 ERROR_SEPARATOR = ";"
 
@@ -23,6 +24,10 @@ def outside_domain(column: str, domain: tuple[str, ...]) -> Column:
 
 def missing_reference() -> Column:
     return ~F.col(REFERENCE_FLAG)
+
+
+def parent(column: str) -> Column:
+    return F.col(f"{PARENT_PREFIX}{column}")
 
 
 def invalid_cpf(column: str) -> Column:
@@ -55,11 +60,13 @@ def quality_rules(entity: str) -> list[Rule]:
             ("VALOR_NEGATIVO", F.col("valor") < 0),
             ("DATA_TRANSACAO_INVALIDA", missing("data_transacao")),
             ("CARTAO_INEXISTENTE", missing_reference()),
+            ("DATA_ANTERIOR_EMISSAO_CARTAO", F.to_date("data_transacao") < parent("data_emissao")),
         ],
         "estornos": [
             ("ID_INVALIDO", missing("id_estorno")),
             ("DATA_ESTORNO_INVALIDA", missing("data_estorno")),
             ("TRANSACAO_INEXISTENTE", missing_reference()),
+            ("DATA_ANTERIOR_TRANSACAO", F.col("data_estorno") < F.to_date(parent("data_transacao"))),
         ],
     }
     return rules[entity]

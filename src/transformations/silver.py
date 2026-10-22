@@ -6,7 +6,7 @@ from pyspark.sql import Column, DataFrame, SparkSession, Window
 from pyspark.sql import functions as F
 
 from src.config import PipelineConfig
-from src.quality.rules import REFERENCE_FLAG, apply_quality_rules, quality_rules
+from src.quality.rules import PARENT_PREFIX, REFERENCE_FLAG, apply_quality_rules, quality_rules
 from src.utils.logging import get_logger, step
 
 DATE_PATTERN = "yyyy-MM-dd"
@@ -55,6 +55,7 @@ class EntitySpec:
     update_condition: str | None = None
     parent: str | None = None
     parent_key: str | None = None
+    parent_columns: tuple[str, ...] = ()
     defaults: dict[str, object] = field(default_factory=dict)
 
 
@@ -121,6 +122,7 @@ ENTITY_SPECS = {
         order_by=("timestamp_ingestao", "hash_linha"),
         parent="cartoes",
         parent_key="id_cartao",
+        parent_columns=("data_emissao",),
         defaults={"estornada": False},
     ),
     "estornos": EntitySpec(
@@ -135,6 +137,7 @@ ENTITY_SPECS = {
         order_by=("timestamp_ingestao", "hash_linha"),
         parent="transacoes_cartao",
         parent_key="id_transacao",
+        parent_columns=("data_transacao",),
     ),
 }
 
@@ -147,8 +150,11 @@ def cast_columns(df: DataFrame, columns: dict[str, Callable[[str], Column]]) -> 
     )
 
 
-def flag_reference(df: DataFrame, parent: DataFrame, key: str) -> DataFrame:
-    parent_keys = parent.select(F.col(key).alias("_parent_key")).distinct()
+def flag_reference(df: DataFrame, parent: DataFrame, key: str, columns: tuple[str, ...] = ()) -> DataFrame:
+    parent_keys = parent.select(
+        F.col(key).alias("_parent_key"),
+        *[F.col(column).alias(f"{PARENT_PREFIX}{column}") for column in columns],
+    ).distinct()
     return (
         df.join(parent_keys, df[key] == parent_keys["_parent_key"], "left")
         .withColumn(REFERENCE_FLAG, F.col("_parent_key").isNotNull())
@@ -216,7 +222,7 @@ def process_entity(spark: SparkSession, config: PipelineConfig, spec: EntitySpec
     bronze = spark.table(config.table("bronze", spec.name)).where(F.col("data_referencia") == F.lit(reference_date))
     typed = cast_columns(bronze, spec.columns)
     if spec.parent:
-        typed = flag_reference(typed, spark.table(config.table("silver", spec.parent)), spec.parent_key)
+        typed = flag_reference(typed, spark.table(config.table("silver", spec.parent)), spec.parent_key, spec.parent_columns)
 
     valid, invalid = apply_quality_rules(typed, quality_rules(spec.name))
     latest, duplicates = deduplicate(valid, [spec.key], spec.order_by)

@@ -1,0 +1,16 @@
+entidade,data_referencia,registros
+cartoes,2026-10-01,278
+cartoes,2026-10-02,55
+cartoes,2026-10-03,52
+clientes,2026-10-01,165
+clientes,2026-10-02,33
+clientes,2026-10-03,33
+contas,2026-10-01,213
+contas,2026-10-02,35
+contas,2026-10-03,33
+estornos,2026-10-01,10
+estornos,2026-10-02,10
+estornos,2026-10-03,10
+transacoes_cartao,2026-10-01,2604
+transacoes_cartao,2026-10-02,54
+transacoes_cartao,2026-10-03,54
